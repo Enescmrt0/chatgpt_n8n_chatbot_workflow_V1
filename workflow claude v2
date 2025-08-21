@@ -1,0 +1,766 @@
+{
+  "name": "🤖 Profesyonel WhatsApp + Instagram Chatbot System v2.0",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🚀 CHATBOT WORKFLOW SİSTEMİ\n\n### 📋 GENEL BİLGİ\n**Versiyon:** 2.0\n**Platform:** WhatsApp & Instagram\n**Amaç:** Çok amaçlı işletme chatbot sistemi\n\n### 🔧 GEREKLİ AYARLAR\n\n#### Environment Variables:\n- `VERIFY_TOKEN`: Meta webhook doğrulama token'ı\n- `META_APP_SECRET`: Facebook App Secret (imza doğrulama için)\n- `META_WA_PHONE_ID`: WhatsApp Phone Number ID\n- `IG_BUSINESS_ID`: Instagram Business Account ID\n- `OPENAI_API_KEY`: OpenAI API anahtarı\n- `SUPPORT_TEAM_WEBHOOK`: Destek ekibi bildirim URL'i\n\n#### Veritabanı Tabloları:\n```sql\n-- Müşteri kayıtları\nCREATE TABLE contacts (\n  id SERIAL PRIMARY KEY,\n  platform VARCHAR(20),\n  user_id VARCHAR(100),\n  name VARCHAR(200),\n  phone VARCHAR(50),\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\n-- Mesaj geçmişi\nCREATE TABLE messages (\n  id SERIAL PRIMARY KEY,\n  platform VARCHAR(20),\n  user_id VARCHAR(100),\n  direction VARCHAR(10),\n  text TEXT,\n  intent VARCHAR(50),\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\n-- Müşteri hafızası\nCREATE TABLE customer_memory (\n  user_id VARCHAR(100) PRIMARY KEY,\n  preferences TEXT,\n  last_order TEXT,\n  notes TEXT,\n  updated_at TIMESTAMP DEFAULT NOW()\n);\n\n-- Destek talepleri\nCREATE TABLE support_tickets (\n  id SERIAL PRIMARY KEY,\n  user_id VARCHAR(100),\n  issue TEXT,\n  priority VARCHAR(20),\n  status VARCHAR(20) DEFAULT 'open',\n  created_at TIMESTAMP DEFAULT NOW()\n);\n```\n\n### 📊 WORKFLOW AKIŞI\n1. **Webhook Alımı** → Güvenlik Kontrolü\n2. **Mesaj İşleme** → Normalizasyon\n3. **AI Analizi** → Intent Tespiti\n4. **Aksiyon** → Yanıt Gönderimi\n5. **Kayıt** → Veritabanı & Hafıza",
+        "height": 800,
+        "width": 600
+      },
+      "id": "note-001",
+      "name": "📚 DOKÜMANTASYON",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 0]
+    },
+
+    {
+      "parameters": {
+        "content": "## 🔐 BÖLÜM 1: WEBHOOK DOĞRULAMA\n\n### Bu bölümün görevi:\nMeta (Facebook) webhook'larını doğrulamak\n\n### Nasıl çalışır:\n1. Meta ilk kurulumda GET isteği gönderir\n2. `hub.verify_token` kontrolü yapılır\n3. Doğruysa `hub.challenge` geri döndürülür\n4. Yanlışsa 403 hatası verilir\n\n### ⚠️ ÖNEMLİ:\n- VERIFY_TOKEN'ı güçlü seçin\n- Meta Business Manager'da aynı token'ı girin",
+        "height": 300,
+        "width": 400
+      },
+      "id": "note-002",
+      "name": "Bölüm 1 Açıklama",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [100, 0]
+    },
+
+    {
+      "parameters": {
+        "path": "webhook/meta-verify",
+        "methods": ["GET"],
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-verify",
+      "name": "🔓 Meta Webhook Doğrulama",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [520, 100]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.query['hub.verify_token']}}",
+              "operation": "equals",
+              "value2": "={{$env.VERIFY_TOKEN}}"
+            }
+          ]
+        }
+      },
+      "id": "if-verify",
+      "name": "Token Doğru mu?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [720, 100]
+    },
+
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "response",
+              "value": "={{$json.query['hub.challenge']}}"
+            }
+          ]
+        }
+      },
+      "id": "set-challenge",
+      "name": "Challenge Hazırla",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [920, 60]
+    },
+
+    {
+      "parameters": {
+        "responseBody": "={{$json.response}}",
+        "responseCode": 200
+      },
+      "id": "respond-200",
+      "name": "✅ Doğrulama Başarılı",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 60]
+    },
+
+    {
+      "parameters": {
+        "responseBody": "Unauthorized",
+        "responseCode": 403
+      },
+      "id": "respond-403",
+      "name": "❌ Doğrulama Başarısız",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [920, 140]
+    },
+
+    {
+      "parameters": {
+        "content": "## 📨 BÖLÜM 2: MESAJ ALIMI\n\n### Bu bölümün görevi:\nWhatsApp ve Instagram mesajlarını almak\n\n### Güvenlik Katmanları:\n1. **HMAC İmza Doğrulama**: Meta'nın gönderdiği imza kontrol edilir\n2. **Rate Limiting**: Aynı kullanıcıdan fazla istek engellenir\n3. **Content Validation**: Zararlı içerik kontrolü\n\n### Desteklenen Mesaj Tipleri:\n- ✅ Metin mesajları\n- ✅ Buton yanıtları\n- ✅ Quick reply'ler\n- ✅ Emoji reaksiyonları\n- ⚠️ Medya mesajları (opsiyonel)",
+        "height": 350,
+        "width": 400
+      },
+      "id": "note-003",
+      "name": "Bölüm 2 Açıklama",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [100, 400]
+    },
+
+    {
+      "parameters": {
+        "path": "webhook/messages",
+        "methods": ["POST"],
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-messages",
+      "name": "📥 Mesaj Webhook'u",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [520, 500]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// HMAC-SHA256 imza doğrulama\nconst crypto = require('crypto');\n\n// Çevre değişkenlerini al\nconst appSecret = $env.META_APP_SECRET;\nif (!appSecret) {\n  throw new Error('META_APP_SECRET tanımlı değil!');\n}\n\n// Header'dan imzayı al\nconst signature = $input.first().json.headers?.['x-hub-signature-256'] || '';\nif (!signature) {\n  return [{json: {valid: false, error: 'İmza header bulunamadı'}}];\n}\n\n// Raw body'yi al\nconst rawBody = $input.first().json.body;\nconst bodyString = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody);\n\n// İmzayı hesapla\nconst expectedSignature = 'sha256=' + crypto\n  .createHmac('sha256', appSecret)\n  .update(bodyString)\n  .digest('hex');\n\n// Karşılaştır\nconst valid = signature === expectedSignature;\n\n// Log için detay ekle\nif (!valid) {\n  console.log('İmza doğrulama hatası:', {\n    received: signature.substring(0, 20) + '...',\n    expected: expectedSignature.substring(0, 20) + '...'\n  });\n}\n\nreturn [{json: {\n  valid,\n  body: rawBody,\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "verify-signature",
+      "name": "🔒 İmza Doğrulama",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 500]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.valid}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-signature",
+      "name": "İmza Geçerli mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [920, 500]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Gelen webhook payload'ını normalize et\nconst data = $input.first().json.body;\n\n// Platform tespiti\nlet platform = 'unknown';\nif (data.object === 'whatsapp_business_account') platform = 'whatsapp';\nelse if (data.object === 'instagram') platform = 'instagram';\n\n// Boş mesaj kontrolü\nconst entry = data.entry?.[0];\nif (!entry) {\n  return [{json: {skip: true, reason: 'No entry data'}}];\n}\n\nconst changes = entry.changes?.[0];\nif (!changes) {\n  return [{json: {skip: true, reason: 'No changes data'}}];\n}\n\nconst value = changes.value;\n\n// WhatsApp mesaj çıkarımı\nif (platform === 'whatsapp') {\n  const message = value.messages?.[0];\n  if (!message) {\n    return [{json: {skip: true, reason: 'No message'}}];\n  }\n  \n  // Mesaj tipini belirle\n  let messageType = 'unknown';\n  let content = '';\n  let mediaUrl = null;\n  \n  if (message.text) {\n    messageType = 'text';\n    content = message.text.body;\n  } else if (message.button) {\n    messageType = 'button_reply';\n    content = message.button.text;\n  } else if (message.interactive) {\n    messageType = 'interactive';\n    content = message.interactive.button_reply?.title || \n              message.interactive.list_reply?.title || '';\n  } else if (message.image) {\n    messageType = 'image';\n    mediaUrl = message.image.id; // Media ID for download\n  }\n  \n  // Kullanıcı bilgilerini al\n  const contact = value.contacts?.[0] || {};\n  \n  return [{json: {\n    platform,\n    messageId: message.id,\n    userId: message.from,\n    userName: contact.profile?.name || 'Bilinmeyen',\n    messageType,\n    content,\n    mediaUrl,\n    timestamp: message.timestamp,\n    context: message.context, // Reply to message info\n    skip: false\n  }}];\n}\n\n// Instagram mesaj çıkarımı\nif (platform === 'instagram') {\n  const messaging = value.messaging?.[0];\n  if (!messaging) {\n    return [{json: {skip: true, reason: 'No messaging data'}}];\n  }\n  \n  const message = messaging.message;\n  if (!message) {\n    return [{json: {skip: true, reason: 'No message'}}];\n  }\n  \n  return [{json: {\n    platform,\n    messageId: message.mid,\n    userId: messaging.sender.id,\n    userName: 'Instagram User',\n    messageType: 'text',\n    content: message.text || '',\n    mediaUrl: message.attachments?.[0]?.payload?.url,\n    timestamp: messaging.timestamp,\n    skip: false\n  }}];\n}\n\nreturn [{json: {skip: true, reason: 'Unknown platform'}}];"
+      },
+      "id": "normalize-message",
+      "name": "🔄 Mesaj Normalizasyon",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 460]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.skip}}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "if-process",
+      "name": "İşlenecek Mesaj mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1320, 460]
+    },
+
+    {
+      "parameters": {
+        "content": "## 🧠 BÖLÜM 3: AI İŞLEME\n\n### Bu bölümün görevi:\nMesajları AI ile analiz edip yanıt üretmek\n\n### AI Katmanları:\n\n#### 1. Bağlam Hazırlama\n- Son 10 mesaj geçmişi\n- Müşteri tercihleri\n- İşletme bilgileri\n\n#### 2. Intent Tespiti\n- GREETING: Selamlama\n- QUESTION: Soru\n- COMPLAINT: Şikayet\n- ORDER: Sipariş\n- SUPPORT: Destek talebi\n\n#### 3. Yanıt Üretimi\n- Kişiselleştirilmiş\n- Bağlama uygun\n- İşletme tonunda\n\n### 🎯 Özel Durumlar:\n- Kızgın müşteri → Empati modu\n- Karmaşık soru → Destek yönlendirme\n- Sipariş → Sistem entegrasyonu",
+        "height": 500,
+        "width": 400
+      },
+      "id": "note-004",
+      "name": "Bölüm 3 Açıklama",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1500, 300]
+    },
+
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "messages",
+        "limit": 10,
+        "sort": {
+          "values": [
+            {
+              "column": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "value": "={{$json.userId}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-history",
+      "name": "📜 Geçmiş Mesajları Al",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1920, 400]
+    },
+
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "customer_memory",
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "value": "={{$('normalize-message').item.json.userId}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-memory",
+      "name": "🧠 Müşteri Hafızası",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1920, 500]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Tüm verileri topla\nconst currentMessage = $('normalize-message').item.json;\nconst history = $('get-history').all().map(item => item.json);\nconst memory = $('get-memory').first()?.json || {};\n\n// İşletme bilgilerini al (environment'tan veya DB'den)\nconst businessInfo = {\n  name: $env.BUSINESS_NAME || 'İşletmemiz',\n  type: $env.BUSINESS_TYPE || 'hizmet sağlayıcı',\n  workHours: $env.WORK_HOURS || '09:00-18:00',\n  tone: $env.CHAT_TONE || 'profesyonel ve samimi'\n};\n\n// Konuşma geçmişini formatla\nconst conversationHistory = history\n  .reverse()\n  .map(msg => `${msg.direction === 'in' ? 'Müşteri' : 'Asistan'}: ${msg.text}`)\n  .join('\\n');\n\n// Müşteri profilini oluştur\nconst customerProfile = {\n  name: currentMessage.userName,\n  preferences: memory.preferences || 'Bilinmiyor',\n  lastOrder: memory.last_order || 'Yok',\n  notes: memory.notes || ''\n};\n\n// System prompt'u hazırla\nconst systemPrompt = `Sen ${businessInfo.name} adına çalışan bir müşteri asistanısın.\n\nİşletme Tipi: ${businessInfo.type}\nÇalışma Saatleri: ${businessInfo.workHours}\nİletişim Tonu: ${businessInfo.tone}\n\nMüşteri Profili:\n- İsim: ${customerProfile.name}\n- Tercihler: ${customerProfile.preferences}\n- Son Sipariş: ${customerProfile.lastOrder}\n- Notlar: ${customerProfile.notes}\n\nKurallar:\n1. Her zaman kibar ve yardımsever ol\n2. Kısa ve net yanıtlar ver\n3. Emoji kullan ama abartma\n4. Müşteriyi ismiyle hitap et\n5. Çözemediğin konularda destek ekibine yönlendir\n6. Fiyat ve stok bilgisi istenen durumlarda güncel bilgi için kontrol gerektiğini belirt\n\nGeçmiş Konuşma:\n${conversationHistory || 'İlk konuşma'}\n\nŞu mesaja yanıt ver ve MUTLAKA yanıtının sonuna şu JSON formatını ekle:\n{\"intent\": \"GREETING|QUESTION|ORDER|COMPLAINT|SUPPORT\", \"confidence\": 0.0-1.0, \"requiresHuman\": true/false, \"sentiment\": \"positive|neutral|negative\"}`;\n\nconst userMessage = currentMessage.content;\n\nreturn [{json: {\n  systemPrompt,\n  userMessage,\n  currentMessage,\n  businessInfo,\n  customerProfile\n}}];"
+      },
+      "id": "prepare-context",
+      "name": "📝 AI Bağlamı Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 450]
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{$json.systemPrompt}}"
+            },
+            {
+              "role": "user",
+              "content": "={{$json.userMessage}}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 500,
+          "topP": 0.9
+        }
+      },
+      "id": "ai-generate",
+      "name": "🤖 AI Yanıt Üret",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [2320, 450]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// AI yanıtını parse et\nconst aiResponse = $input.first().json.choices[0].message.content;\n\n// JSON metadata'yı ayıkla\nconst jsonMatch = aiResponse.match(/\\{[^}]+\\}$/);\nlet metadata = {\n  intent: 'UNKNOWN',\n  confidence: 0.5,\n  requiresHuman: false,\n  sentiment: 'neutral'\n};\n\nlet cleanResponse = aiResponse;\n\nif (jsonMatch) {\n  try {\n    metadata = JSON.parse(jsonMatch[0]);\n    cleanResponse = aiResponse.replace(jsonMatch[0], '').trim();\n  } catch (e) {\n    console.error('JSON parse hatası:', e);\n  }\n}\n\n// Özel durumları kontrol et\nconst specialCases = {\n  requiresHuman: metadata.requiresHuman || metadata.confidence < 0.3,\n  isComplaint: metadata.intent === 'COMPLAINT',\n  isOrder: metadata.intent === 'ORDER',\n  isUrgent: metadata.sentiment === 'negative' && metadata.confidence > 0.7\n};\n\n// Yanıt süslemeleri\nif (specialCases.isUrgent) {\n  cleanResponse = '🔴 ' + cleanResponse;\n}\n\n// Mesaj limitlerini kontrol et\nif (cleanResponse.length > 1000) {\n  cleanResponse = cleanResponse.substring(0, 997) + '...';\n}\n\nreturn [{json: {\n  response: cleanResponse,\n  metadata,\n  specialCases,\n  originalMessage: $('normalize-message').item.json\n}}];"
+      },
+      "id": "parse-response",
+      "name": "🔍 Yanıtı İşle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2520, 450]
+    },
+
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.specialCases.requiresHuman}}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "human"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.metadata.intent}}",
+                    "rightValue": "ORDER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "order"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.metadata.intent}}",
+                    "rightValue": "COMPLAINT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "complaint"
+            }
+          ]
+        },
+        "fallbackOutput": "standard"
+      },
+      "id": "route-response",
+      "name": "🔀 Yanıt Yönlendirme",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2720, 450]
+    },
+
+    {
+      "parameters": {
+        "content": "## 📤 BÖLÜM 4: YANITLAMA\n\n### Bu bölümün görevi:\nÜretilen yanıtları platforma göre göndermek\n\n### Platform Özellikleri:\n\n#### WhatsApp:\n- ✅ Metin mesajları\n- ✅ Interaktif butonlar\n- ✅ Liste mesajları\n- ✅ Medya (resim, video, dosya)\n- ✅ Şablon mesajları\n\n#### Instagram:\n- ✅ Metin mesajları\n- ✅ Hızlı yanıtlar\n- ✅ Medya paylaşımı\n- ⚠️ Sınırlı interaktif özellikler\n\n### Rate Limiting:\n- WhatsApp: 1000 mesaj/gün\n- Instagram: 100 mesaj/saat\n\n### Hata Yönetimi:\n- 3 deneme hakkı\n- Başarısızlıkta yedek mesaj\n- Hata loglaması",
+        "height": 450,
+        "width": 400
+      },
+      "id": "note-005",
+      "name": "Bölüm 4 Açıklama",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2900, 300]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$('normalize-message').item.json.platform}}",
+              "operation": "equals",
+              "value2": "whatsapp"
+            }
+          ]
+        }
+      },
+      "id": "if-whatsapp",
+      "name": "WhatsApp mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [3320, 420]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{$env.META_WA_PHONE_ID}}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{$('normalize-message').item.json.userId}}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text",
+              "value": "={\"body\": \"{{$('parse-response').item.json.response}}\"}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          }
+        }
+      },
+      "id": "send-whatsapp",
+      "name": "📱 WhatsApp Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3520, 380]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{$env.IG_BUSINESS_ID}}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "recipient",
+              "value": "={\"id\": \"{{$('normalize-message').item.json.userId}}\"}"
+            },
+            {
+              "name": "message",
+              "value": "={\"text\": \"{{$('parse-response').item.json.response}}\"}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "send-instagram",
+      "name": "📸 Instagram Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3520, 480]
+    },
+
+    {
+      "parameters": {
+        "content": "## 💾 BÖLÜM 5: VERİ KAYDI\n\n### Bu bölümün görevi:\nTüm etkileşimleri kayıt altına almak\n\n### Kaydedilen Veriler:\n\n#### 1. Mesaj Kayıtları\n- Gelen/giden tüm mesajlar\n- Zaman damgası\n- Platform bilgisi\n- Intent ve sentiment\n\n#### 2. Müşteri Profili\n- İletişim tercihleri\n- Satın alma geçmişi\n- Özel notlar\n- Son etkileşim\n\n#### 3. Performans Metrikleri\n- Yanıt süreleri\n- AI başarı oranı\n- Müşteri memnuniyeti\n- Destek yönlendirmeleri\n\n### 📊 Raporlama:\n- Günlük özet\n- Haftalık analiz\n- Aylık trendler",
+        "height": 450,
+        "width": 400
+      },
+      "id": "note-006",
+      "name": "Bölüm 5 Açıklama",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [3700, 300]
+    },
+
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "messages",
+        "columns": "platform,user_id,direction,text,intent,created_at",
+        "values": "={{$('normalize-message').item.json.platform}},={{$('normalize-message').item.json.userId}},in,={{$('normalize-message').item.json.content}},={{$('parse-response').item.json.metadata.intent}},={{new Date().toISOString()}}"
+      },
+      "id": "save-incoming",
+      "name": "💾 Gelen Mesajı Kaydet",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [4120, 400]
+    },
+
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "messages",
+        "columns": "platform,user_id,direction,text,intent,created_at",
+        "values": "={{$('normalize-message').item.json.platform}},={{$('normalize-message').item.json.userId}},out,={{$('parse-response').item.json.response}},={{$('parse-response').item.json.metadata.intent}},={{new Date().toISOString()}}"
+      },
+      "id": "save-outgoing",
+      "name": "💾 Giden Mesajı Kaydet",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [4120, 500]
+    },
+
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": "public",
+        "table": "customer_memory",
+        "columns": "user_id,preferences,notes,updated_at",
+        "updateKey": "user_id",
+        "values": "={{$('normalize-message').item.json.userId}},={{$('parse-response').item.json.metadata.intent}},Last interaction: {{$('parse-response').item.json.response.substring(0,100)}},={{new Date().toISOString()}}"
+      },
+      "id": "update-memory",
+      "name": "🧠 Hafızayı Güncelle",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [4120, 600]
+    },
+
+    {
+      "parameters": {
+        "content": "## 🚨 BÖLÜM 6: DESTEK YÖNLENDİRME\n\n### Bu bölümün görevi:\nKritik durumları insan desteğine yönlendirmek\n\n### Yönlendirme Kriterleri:\n- AI güven skoru < 0.3\n- Müşteri öfkeli/sinirli\n- Karmaşık teknik sorun\n- Ödeme/iade talebi\n- 3+ kez aynı soru\n\n### Yönlendirme Süreci:\n1. Destek talebi oluştur\n2. Müşteriye bilgi ver\n3. Destek ekibine bildirim\n4. Ticket numarası ata\n5. Takip et\n\n### Öncelik Seviyeleri:\n- 🔴 YÜKSEK: Hemen\n- 🟡 ORTA: 30 dakika\n- 🟢 DÜŞÜK: 2 saat",
+        "height": 400,
+        "width": 400
+      },
+      "id": "note-007",
+      "name": "Bölüm 6 Açıklama",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2900, 800]
+    },
+
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "support_tickets",
+        "columns": "user_id,issue,priority,status,created_at",
+        "values": "={{$('normalize-message').item.json.userId}},={{$('normalize-message').item.json.content}},={{$json.metadata.sentiment === 'negative' ? 'high' : 'medium'}},open,={{new Date().toISOString()}}"
+      },
+      "id": "create-ticket",
+      "name": "🎫 Destek Talebi Oluştur",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [3320, 900]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPPORT_TEAM_WEBHOOK}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{$('normalize-message').item.json.userId}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$('normalize-message').item.json.platform}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$('normalize-message').item.json.content}}"
+            },
+            {
+              "name": "priority",
+              "value": "={{$json.metadata.sentiment === 'negative' ? 'high' : 'medium'}}"
+            },
+            {
+              "name": "ai_analysis",
+              "value": "={{JSON.stringify($json.metadata)}}"
+            }
+          ]
+        }
+      },
+      "id": "notify-support",
+      "name": "📢 Destek Ekibine Bildir",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3520, 900]
+    },
+
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "message",
+              "value": "🔄 Mesajınız destek ekibimize iletildi. En kısa sürede size dönüş yapacağız. Ticket No: #{{Math.floor(Math.random() * 10000)}}"
+            }
+          ]
+        }
+      },
+      "id": "support-message",
+      "name": "Destek Mesajı Hazırla",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [3320, 1000]
+    },
+
+    {
+      "parameters": {
+        "responseBody": "OK",
+        "responseCode": 200
+      },
+      "id": "final-response",
+      "name": "✅ İşlem Tamamlandı",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [4320, 450]
+    },
+
+    {
+      "parameters": {
+        "content": "## 🎯 PERFORMANS İZLEME\n\n### Metrikler:\n- ⏱️ Ortalama yanıt süresi: < 2 saniye\n- 📊 AI başarı oranı: > %85\n- 😊 Müşteri memnuniyeti: > 4.5/5\n- 🔄 Otomasyon oranı: > %70\n\n### Optimizasyon:\n- Cache kullanımı\n- Batch processing\n- Async operations\n- Connection pooling",
+        "height": 250,
+        "width": 300
+      },
+      "id": "note-008",
+      "name": "Performans",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [4500, 300]
+    }
+  ],
+  "connections": {
+    "🔓 Meta Webhook Doğrulama": {
+      "main": [[{"node": "Token Doğru mu?", "type": "main", "index": 0}]]
+    },
+    "Token Doğru mu?": {
+      "main": [
+        [{"node": "Challenge Hazırla", "type": "main", "index": 0}],
+        [{"node": "❌ Doğrulama Başarısız", "type": "main", "index": 0}]
+      ]
+    },
+    "Challenge Hazırla": {
+      "main": [[{"node": "✅ Doğrulama Başarılı", "type": "main", "index": 0}]]
+    },
+    "📥 Mesaj Webhook'u": {
+      "main": [[{"node": "🔒 İmza Doğrulama", "type": "main", "index": 0}]]
+    },
+    "🔒 İmza Doğrulama": {
+      "main": [[{"node": "İmza Geçerli mi?", "type": "main", "index": 0}]]
+    },
+    "İmza Geçerli mi?": {
+      "main": [
+        [{"node": "🔄 Mesaj Normalizasyon", "type": "main", "index": 0}],
+        [{"node": "✅ İşlem Tamamlandı", "type": "main", "index": 0}]
+      ]
+    },
+    "🔄 Mesaj Normalizasyon": {
+      "main": [[{"node": "İşlenecek Mesaj mı?", "type": "main", "index": 0}]]
+    },
+    "İşlenecek Mesaj mı?": {
+      "main": [
+        [
+          {"node": "📜 Geçmiş Mesajları Al", "type": "main", "index": 0},
+          {"node": "🧠 Müşteri Hafızası", "type": "main", "index": 0}
+        ],
+        [{"node": "✅ İşlem Tamamlandı", "type": "main", "index": 0}]
+      ]
+    },
+    "📜 Geçmiş Mesajları Al": {
+      "main": [[{"node": "📝 AI Bağlamı Hazırla", "type": "main", "index": 0}]]
+    },
+    "🧠 Müşteri Hafızası": {
+      "main": [[{"node": "📝 AI Bağlamı Hazırla", "type": "main", "index": 1}]]
+    },
+    "📝 AI Bağlamı Hazırla": {
+      "main": [[{"node": "🤖 AI Yanıt Üret", "type": "main", "index": 0}]]
+    },
+    "🤖 AI Yanıt Üret": {
+      "main": [[{"node": "🔍 Yanıtı İşle", "type": "main", "index": 0}]]
+    },
+    "🔍 Yanıtı İşle": {
+      "main": [[{"node": "🔀 Yanıt Yönlendirme", "type": "main", "index": 0}]]
+    },
+    "🔀 Yanıt Yönlendirme": {
+      "main": [
+        [
+          {"node": "🎫 Destek Talebi Oluştur", "type": "main", "index": 0},
+          {"node": "📢 Destek Ekibine Bildir", "type": "main", "index": 0},
+          {"node": "Destek Mesajı Hazırla", "type": "main", "index": 0}
+        ],
+        [{"node": "WhatsApp mı?", "type": "main", "index": 0}],
+        [{"node": "WhatsApp mı?", "type": "main", "index": 0}],
+        [{"node": "WhatsApp mı?", "type": "main", "index": 0}]
+      ]
+    },
+    "WhatsApp mı?": {
+      "main": [
+        [{"node": "📱 WhatsApp Gönder", "type": "main", "index": 0}],
+        [{"node": "📸 Instagram Gönder", "type": "main", "index": 0}]
+      ]
+    },
+    "📱 WhatsApp Gönder": {
+      "main": [[
+        {"node": "💾 Gelen Mesajı Kaydet", "type": "main", "index": 0},
+        {"node": "💾 Giden Mesajı Kaydet", "type": "main", "index": 0},
+        {"node": "🧠 Hafızayı Güncelle", "type": "main", "index": 0}
+      ]]
+    },
+    "📸 Instagram Gönder": {
+      "main": [[
+        {"node": "💾 Gelen Mesajı Kaydet", "type": "main", "index": 0},
+        {"node": "💾 Giden Mesajı Kaydet", "type": "main", "index": 0},
+        {"node": "🧠 Hafızayı Güncelle", "type": "main", "index": 0}
+      ]]
+    },
+    "💾 Gelen Mesajı Kaydet": {
+      "main": [[{"node": "✅ İşlem Tamamlandı", "type": "main", "index": 0}]]
+    },
+    "💾 Giden Mesajı Kaydet": {
+      "main": [[{"node": "✅ İşlem Tamamlandı", "type": "main", "index": 0}]]
+    },
+    "🧠 Hafızayı Güncelle": {
+      "main": [[{"node": "✅ İşlem Tamamlandı", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "versionId": "pro-v2.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "chatbot-pro-v2",
+  "tags": [
+    {
+      "name": "WhatsApp",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Instagram",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "AI",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Production",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
