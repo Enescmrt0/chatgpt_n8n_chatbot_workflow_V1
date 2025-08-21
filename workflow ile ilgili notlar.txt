@@ -1,0 +1,66 @@
+## 🚀 CHATBOT WORKFLOW SİSTEMİ
+
+### 📋 GENEL BİLGİ
+**Versiyon:** 2.0
+**Platform:** WhatsApp & Instagram
+**Amaç:** Çok amaçlı işletme chatbot sistemi
+
+### 🔧 GEREKLİ AYARLAR
+
+#### Environment Variables:
+- `VERIFY_TOKEN`: Meta webhook doğrulama token'ı
+- `META_APP_SECRET`: Facebook App Secret (imza doğrulama için)
+- `META_WA_PHONE_ID`: WhatsApp Phone Number ID
+- `IG_BUSINESS_ID`: Instagram Business Account ID
+- `OPENAI_API_KEY`: OpenAI API anahtarı
+- `SUPPORT_TEAM_WEBHOOK`: Destek ekibi bildirim URL'i
+
+#### Veritabanı Tabloları:
+```sql
+-- Müşteri kayıtları
+CREATE TABLE contacts (
+  id SERIAL PRIMARY KEY,
+  platform VARCHAR(20),
+  user_id VARCHAR(100),
+  name VARCHAR(200),
+  phone VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Mesaj geçmişi
+CREATE TABLE messages (
+  id SERIAL PRIMARY KEY,
+  platform VARCHAR(20),
+  user_id VARCHAR(100),
+  direction VARCHAR(10),
+  text TEXT,
+  intent VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Müşteri hafızası
+CREATE TABLE customer_memory (
+  user_id VARCHAR(100) PRIMARY KEY,
+  preferences TEXT,
+  last_order TEXT,
+  notes TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Destek talepleri
+CREATE TABLE support_tickets (
+  id SERIAL PRIMARY KEY,
+  user_id VARCHAR(100),
+  issue TEXT,
+  priority VARCHAR(20),
+  status VARCHAR(20) DEFAULT 'open',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### 📊 WORKFLOW AKIŞI
+1. **Webhook Alımı** → Güvenlik Kontrolü
+2. **Mesaj İşleme** → Normalizasyon
+3. **AI Analizi** → Intent Tespiti
+4. **Aksiyon** → Yanıt Gönderimi
+5. **Kayıt** → Veritabanı & Hafıza
