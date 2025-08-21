@@ -1,23 +1,20 @@
 {
   "name": "WhatsApp + Instagram Chatbot — Full, Annotated",
-  "notesInFlow": true,
   "nodes": [
     {
       "parameters": {
         "path": "meta/verify",
-        "methods": [
-          "GET"
-        ],
+        "methods": ["GET"],
         "responseMode": "responseNode",
         "options": {
           "rawBody": true
         }
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000001",
       "name": "Webhook • Meta Verify (GET)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [220, 140],
-      "notes": "Meta (WhatsApp/Instagram) webhook doğrulama çağrısı. Facebook, GET ile `hub.mode`, `hub.verify_token`, `hub.challenge` gönderir. Bu node, 'Respond to Webhook' ile challenge'ı geri döndürür. ENV: VERIFY_TOKEN kullanın."
+      "position": [220, 140]
     },
     {
       "parameters": {
@@ -25,21 +22,21 @@
         "responseCode": 200,
         "options": {}
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000002",
       "name": "Respond • Verify",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [540, 140],
-      "notes": "Doğrulama yanıtı. Eğer `hub.verify_token` yanlışsa 403 dönmek için 'IF Verify Token' ile kontrol eklenmiştir."
+      "position": [540, 140]
     },
     {
       "parameters": {
-        "functionCode": "const valid = ($json.query?.['hub.verify_token'] || '') === ($env.VERIFY_TOKEN || '');\nif (!valid) {\n  return [{ json: { valid: false, challenge: $json.query?.['hub.challenge'] || '' } }];\n}\nreturn [{ json: { valid: true, challenge: $json.query?.['hub.challenge'] || '' } }];"
+        "jsCode": "const valid = ($input.first().json.query?.['hub.verify_token'] || '') === ($env.VERIFY_TOKEN || '');\nif (!valid) {\n  return [{ json: { valid: false, challenge: $input.first().json.query?.['hub.challenge'] || '' } }];\n}\nreturn [{ json: { valid: true, challenge: $input.first().json.query?.['hub.challenge'] || '' } }];"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000003",
       "name": "IF • Verify Token",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [380, 240],
-      "notes": "Query parametre `hub.verify_token` ile ENV `VERIFY_TOKEN` eşleşiyor mu? Evetse 200, değilse 403 döndür."
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 240]
     },
     {
       "parameters": {
@@ -47,13 +44,12 @@
         "responseCode": 403,
         "options": {}
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000004",
       "name": "Respond • 403",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [540, 240],
-      "notes": "Yanlış verify token durumunda 403."
+      "position": [540, 240]
     },
-
     {
       "parameters": {
         "path": "wa/in",
@@ -61,11 +57,11 @@
         "responseMode": "responseNode",
         "options": { "rawBody": true }
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000005",
       "name": "Webhook • WhatsApp (POST)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [220, 420],
-      "notes": "WhatsApp Cloud API inbound. Meta, X-Hub-Signature-256 header ile imza gönderir. Bu node 'Respond to Webhook' ile 200 dönecek."
+      "position": [220, 420]
     },
     {
       "parameters": {
@@ -74,38 +70,38 @@
         "responseMode": "responseNode",
         "options": { "rawBody": true }
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000006",
       "name": "Webhook • Instagram (POST)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [220, 620],
-      "notes": "Instagram Messaging inbound webhook. Aynı doğrulama ve imza kontrol mantığı."
+      "position": [220, 620]
     },
-
     {
       "parameters": {
-        "functionCode": "// HMAC SHA-256 imza doğrulama (Meta App Secret ile)\nconst crypto = require('crypto');\nconst appSecret = $env.META_APP_SECRET || '';\nconst signature = $json.headers?.['x-hub-signature-256'] || $json.headers?.['X-Hub-Signature-256'] || '';\nconst rawBody = $json.rawBody ? Buffer.from($json.rawBody) : Buffer.from(JSON.stringify($json.body||{}));\nconst expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');\nconst valid = signature === expected;\nreturn [{ json: { valid, signature, expected } }];"
+        "jsCode": "// HMAC SHA-256 imza doğrulama (Meta App Secret ile)\nconst crypto = require('crypto');\nconst appSecret = $env.META_APP_SECRET || '';\nconst signature = $input.first().json.headers?.['x-hub-signature-256'] || $input.first().json.headers?.['X-Hub-Signature-256'] || '';\nconst rawBody = $input.first().json.rawBody ? Buffer.from($input.first().json.rawBody) : Buffer.from(JSON.stringify($input.first().json.body||{}));\nconst expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');\nconst valid = signature === expected;\nreturn [{ json: { valid, signature, expected } }];"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000007",
       "name": "Security • Verify Signature",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [420, 520],
-      "notes": "Meta imza doğrulaması. ENV: META_APP_SECRET. Geçersizse 403 döndür."
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 520]
     },
     {
       "parameters": {
         "conditions": {
           "boolean": [
             {
-              "value1": "={{$json.valid}}"
+              "value1": "={{$json.valid}}",
+              "value2": true
             }
           ]
         }
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000008",
       "name": "IF • Signature OK?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [620, 520],
-      "notes": "İmza geçerliyse devam, değilse 403."
+      "position": [620, 520]
     },
     {
       "parameters": {
@@ -113,431 +109,359 @@
         "responseCode": 403,
         "options": {}
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000009",
       "name": "Respond • 403 (Sig)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [800, 600],
-      "notes": "İmza hatalıysa 403 döner."
+      "position": [800, 600]
     },
-
     {
       "parameters": {
-        "functionCode": "// WhatsApp ve Instagram payload'unu normalize et\nconst body = $json.body || {};\nlet platform = 'whatsapp';\nif (($json.headers?.['x-meta-topic']||'').toLowerCase().includes('instagram') || (body.object||'').includes('instagram')) platform = 'instagram';\n\nlet entry = (body.entry && body.entry[0]) || {};\nlet change = (entry.changes && entry.changes[0]) || {};\nlet value = change.value || {};\n\n// WhatsApp\nlet waMsg = (value.messages && value.messages[0]) || null;\nlet waFrom = waMsg?.from || value?.contacts?.[0]?.wa_id || '';\nlet waText = waMsg?.text?.body || waMsg?.button?.text || waMsg?.interactive?.button_reply?.title || '' ;\nlet waBtnId = waMsg?.interactive?.button_reply?.id || null;\nlet waMsgId = waMsg?.id || null;\n\n// Instagram (Messaging webhook yapısı farklı olabilir; burada örnek normalize)\nlet igMsg = (value.messaging && value.messaging[0] && value.messaging[0].message) || null;\nlet igFrom = (value.messaging && value.messaging[0] && value.messaging[0].sender && value.messaging[0].sender.id) || '';\nlet igText = igMsg?.text || '';\n\nconst out = {\n  platform,\n  from: platform==='whatsapp'? waFrom : igFrom,\n  text: platform==='whatsapp'? waText : igText,\n  ratingChoice: platform==='whatsapp'? waBtnId : null,\n  waMessageId: waMsgId || null,\n  raw: body,\n};\nreturn [{ json: out }];"
+        "jsCode": "// WhatsApp ve Instagram payload'unu normalize et\nconst body = $input.first().json.body || {};\nlet platform = 'whatsapp';\nif (($input.first().json.headers?.['x-meta-topic']||'').toLowerCase().includes('instagram') || (body.object||'').includes('instagram')) platform = 'instagram';\n\nlet entry = (body.entry && body.entry[0]) || {};\nlet change = (entry.changes && entry.changes[0]) || {};\nlet value = change.value || {};\n\n// WhatsApp\nlet waMsg = (value.messages && value.messages[0]) || null;\nlet waFrom = waMsg?.from || value?.contacts?.[0]?.wa_id || '';\nlet waText = waMsg?.text?.body || waMsg?.button?.text || waMsg?.interactive?.button_reply?.title || '' ;\nlet waBtnId = waMsg?.interactive?.button_reply?.id || null;\nlet waMsgId = waMsg?.id || null;\n\n// Instagram\nlet igMsg = (value.messaging && value.messaging[0] && value.messaging[0].message) || null;\nlet igFrom = (value.messaging && value.messaging[0] && value.messaging[0].sender && value.messaging[0].sender.id) || '';\nlet igText = igMsg?.text || '';\n\nconst out = {\n  platform,\n  from: platform==='whatsapp'? waFrom : igFrom,\n  text: platform==='whatsapp'? waText : igText,\n  ratingChoice: platform==='whatsapp'? waBtnId : null,\n  waMessageId: waMsgId || null,\n  raw: body,\n};\nreturn [{ json: out }];"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000010",
       "name": "Transform • Normalize Event",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [820, 420],
-      "notes": "Gelen webhook payload'unu tek formatta toplar: platform, from, text, ratingChoice, waMessageId."
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [820, 420]
     },
-
     {
       "parameters": {
         "operation": "insert",
+        "schema": "public",
         "table": "contacts",
-        "columns": ["platform", "user_id"],
-        "values": [
-          "={{$json.platform}}",
-          "={{$json.from}}"
-        ]
+        "columns": "platform,user_id",
+        "values": "={{$json.platform}},={{$json.from}}"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000011",
       "name": "DB • Upsert Contact",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [1040, 360],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "contacts(platform, user_id, first_seen default now()). Eğer unique constraint varsa 'ignore duplicates' opsiyonunu DB seviyesinde kullanın."
+      "typeVersion": 2.4,
+      "position": [1040, 360]
     },
     {
       "parameters": {
         "operation": "insert",
+        "schema": "public",
         "table": "messages",
-        "columns": ["platform", "user_id", "direction", "text", "provider_msg_id"],
-        "values": [
-          "={{$json.platform}}",
-          "={{$json.from}}",
-          "in",
-          "={{$json.text}}",
-          "={{$json.waMessageId}}"
-        ]
+        "columns": "platform,user_id,direction,text,provider_msg_id",
+        "values": "={{$json.platform}},={{$json.from}},in,={{$json.text}},={{$json.waMessageId}}"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000012",
       "name": "DB • Log Inbound Message",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [1040, 460],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "Müşteri mesajı kaydı. messages(direction: in/out)."
+      "typeVersion": 2.4,
+      "position": [1040, 460]
     },
-
     {
       "parameters": {
         "operation": "select",
+        "schema": "public",
         "table": "customer_memory",
-        "columns": ["summary"],
-        "where": "platform = :p AND user_id = :u",
-        "values": { "p": "={{$json.platform}}", "u": "={{$json.from}}" },
-        "options": { "limit": 1 }
+        "returnAll": false,
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "column": "user_id",
+              "value": "={{$json.from}}"
+            }
+          ]
+        }
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000013",
       "name": "DB • Fetch Memory",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [1240, 360],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "Kullanıcıya özel özet bellek (son tercihleri, önemli ayrıntılar)."
+      "typeVersion": 2.4,
+      "position": [1240, 360]
     },
     {
       "parameters": {
         "operation": "select",
+        "schema": "public",
         "table": "messages",
-        "columns": ["direction", "text"],
-        "where": "platform = :p AND user_id = :u",
-        "values": { "p": "={{$json.platform}}", "u": "={{$json.from}}" },
-        "options": { "limit": 10, "orderBy": "created_at", "orderByDirection": "DESC" }
+        "returnAll": false,
+        "limit": 10,
+        "sort": {
+          "values": [
+            {
+              "column": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "where": {
+          "values": [
+            {
+              "column": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "column": "user_id",
+              "value": "={{$json.from}}"
+            }
+          ]
+        }
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000014",
       "name": "DB • Fetch Last 10 Msgs",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [1240, 460],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "Geçmiş konuşmadan son 10 mesaj. Prompt'a bağlam olarak eklenir."
+      "typeVersion": 2.4,
+      "position": [1240, 460]
     },
-
     {
       "parameters": {
-        "functionCode": "// Prompt bileşenlerini hazırla\nconst memory = $items("DB • Fetch Memory", 0, 0).json?.[0]?.summary || '';\nconst historyRows = $items("DB • Fetch Last 10 Msgs", 0, 0).json || [];\nconst history = historyRows.reverse().map(r => `${r.direction}: ${r.text}`).join('\n');\nconst userText = $items("Transform • Normalize Event", 0, 0).json.text;\nconst system = `Sen bir işletme destek botusun. Her yanıt kısa, net ve nazik olmalı. Gerekirse sipariş durumunu anlat, gerekirse not al. Elde varsa müşteri belleğini (tercihler, geçmiş) dikkate al.`;\nreturn [{ json: { system, memory, history, userText } }];"
+        "jsCode": "// Prompt bileşenlerini hazırla\nconst memory = $('DB • Fetch Memory').first().json?.summary || '';\nconst historyRows = $('DB • Fetch Last 10 Msgs').all() || [];\nconst history = historyRows.reverse().map(item => `${item.json.direction}: ${item.json.text}`).join('\\n');\nconst userText = $('Transform • Normalize Event').first().json.text;\nconst system = `Sen bir işletme destek botusun. Her yanıt kısa, net ve nazik olmalı. Gerekirse sipariş durumunu anlat, gerekirse not al. Elde varsa müşteri belleğini (tercihler, geçmiş) dikkate al.`;\nreturn [{ json: { system, memory, history, userText } }];"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000015",
       "name": "AI • Build Prompt Context",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [1440, 410],
-      "notes": "Bellek + geçmiş konuşma + sistem talimatını birleştirir."
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 410]
     },
-
     {
       "parameters": {
-        "operation": "chat",
+        "resource": "chat",
         "model": "gpt-4o-mini",
-        "temperature": 0,
-        "messages": [
-          { "role": "system", "content": "={{$json.system}}" },
-          { "role": "system", "content": "Müşteri belleği: {{$json.memory}}" },
-          { "role": "system", "content": "Geçmiş konuşma:\n{{$json.history}}" },
-          { "role": "user", "content": "={{$json.userText}}" },
-          { "role": "system", "content": "Cevabın SONUNA tek satırlık JSON ekle:\n{\"intent\": \"ORDER|RATING|FAQ|HANDOFF|OTHER\", \"confidence\": 0-1, \"order_id\": \"varsa\"}" }
-        ]
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{$json.system}}"
+            },
+            {
+              "role": "system",
+              "content": "Müşteri belleği: {{$json.memory}}"
+            },
+            {
+              "role": "system",
+              "content": "Geçmiş konuşma:\n{{$json.history}}"
+            },
+            {
+              "role": "user",
+              "content": "={{$json.userText}}"
+            },
+            {
+              "role": "system",
+              "content": "Cevabın SONUNA tek satırlık JSON ekle:\n{\"intent\": \"ORDER|RATING|FAQ|HANDOFF|OTHER\", \"confidence\": 0-1, \"order_id\": \"varsa\"}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0
+        }
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000016",
       "name": "AI • Classify + Draft Reply",
-      "type": "n8n-nodes-base.openai",
-      "typeVersion": 1,
-      "position": [1660, 410],
-      "credentials": { "openaiApi": "OpenAI Account" },
-      "notes": "Yanıt taslağı + niyet JSON'u (satır sonunda). temperature=0 → tutarlılık."
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [1660, 410]
     },
     {
       "parameters": {
-        "functionCode": "// Mesaj sonundaki JSON'u ayıkla\nconst content = $json.data?.choices?.[0]?.message?.content || '';\nconst match = content.match(/\{\"intent\"[\s\S]*\}$/);\nlet meta = { intent: 'OTHER', confidence: 0, order_id: ''};\nlet reply = content;\nif (match) {\n  try { meta = JSON.parse(match[0]); reply = content.replace(match[0], '').trim(); } catch(e) {}\n}\nreturn [{ json: { reply, meta } }];"
+        "jsCode": "// Mesaj sonundaki JSON'u ayıkla\nconst content = $input.first().json.choices?.[0]?.message?.content || '';\nconst match = content.match(/\\{\"intent\"[\\s\\S]*\\}$/);\nlet meta = { intent: 'OTHER', confidence: 0, order_id: ''};\nlet reply = content;\nif (match) {\n  try { meta = JSON.parse(match[0]); reply = content.replace(match[0], '').trim(); } catch(e) {}\n}\nreturn [{ json: { reply, meta } }];"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000017",
       "name": "AI • Parse Intent JSON",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [1860, 410],
-      "notes": "Niyet JSON'unu çıkarır: intent, confidence, order_id. Kalanı 'reply'."
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1860, 410]
     },
-
     {
       "parameters": {
-        "propertyName": "={{$json.meta.intent}}",
-        "rules": [
-          { "operation": "equal", "value": "ORDER", "output": 1 },
-          { "operation": "equal", "value": "RATING", "output": 2 },
-          { "operation": "equal", "value": "HANDOFF", "output": 3 }
-        ]
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.meta.intent}}",
+                    "rightValue": "ORDER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "ORDER"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.meta.intent}}",
+                    "rightValue": "RATING",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "RATING"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.meta.intent}}",
+                    "rightValue": "HANDOFF",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "HANDOFF"
+            }
+          ]
+        },
+        "fallbackOutput": "DEFAULT"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000018",
       "name": "Route • Intent",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 1,
-      "position": [2060, 410],
-      "notes": "Intent'e göre dallanır: ORDER / RATING / HANDOFF / default → FAQ/OTHER."
+      "typeVersion": 3,
+      "position": [2060, 410]
     },
-
     {
       "parameters": {
-        "functionCode": "// Mesajdan sipariş numarası çıkar (6+ haneli) veya meta.order_id kullan\nconst text = $items("Transform • Normalize Event", 0, 0).json.text || '';\nconst metaOrder = $items("AI • Parse Intent JSON", 0, 0).json.meta.order_id || '';\nconst m = text.match(/(\b\d{6,}\b)/);\nconst orderId = metaOrder || (m? m[1] : '');\nreturn [{ json: { orderId } }];"
+        "jsCode": "// Mesajdan sipariş numarası çıkar\nconst text = $('Transform • Normalize Event').first().json.text || '';\nconst metaOrder = $('AI • Parse Intent JSON').first().json.meta.order_id || '';\nconst m = text.match(/(\\b\\d{6,}\\b)/);\nconst orderId = metaOrder || (m? m[1] : '');\nreturn [{ json: { orderId } }];"
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000019",
       "name": "Order • Extract ID",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [2260, 300],
-      "notes": "Regex ile sipariş numarası tespiti. Yoksa boş döner."
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2260, 300]
     },
     {
       "parameters": {
-        "operation": "select",
-        "table": "orders",
-        "columns": ["order_id", "status", "last_update"],
-        "where": "order_id = :o",
-        "values": { "o": "={{$json.orderId}}" },
-        "options": { "limit": 1 }
-      },
-      "name": "Order • DB Lookup",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [2460, 260],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "orders tablosundan arar. Bulunamazsa API'ye sor."
-    },
-    {
-      "parameters": {
-        "authentication": "headerAuth",
-        "options": { "retryOnFail": true, "maxRetries": 3, "retryWait": 1000 },
         "url": "={{$env.ORDER_API_BASE}}/orders/{{$json.orderId}}",
-        "sendBody": false
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000020",
       "name": "Order • HTTP Lookup",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [2460, 340],
-      "credentials": { "httpHeaderAuth": "Order API Token" },
-      "notes": "Dış sipariş servisinden çek (Bearer token credential olarak)."
+      "typeVersion": 4.2,
+      "position": [2460, 340]
     },
-    {
-      "parameters": {
-        "functionCode": "// DB sonucu veya API sonucundan insan-dostu cevap hazırla\nconst dbRow = $items(\"Order • DB Lookup\", 0, 0).json?.[0] || null;\nconst apiRow = $items(\"Order • HTTP Lookup\", 0, 0).json || null;\nconst data = dbRow || apiRow || null;\nlet text = '';\nif (!($items(\"Order • Extract ID\", 0, 0).json.orderId)) {\n  text = 'Sipariş numaranızı paylaşabilir misiniz? (Örn: 123456)';\n} else if (!data) {\n  text = `Üzgünüm, şu an ${$items(\"Order • Extract ID\", 0, 0).json.orderId} numaralı siparişi bulamadım. Lütfen numarayı doğrular mısınız?`;\n} else {\n  text = `Sipariş #${data.order_id} durumunuz: ${data.status}. Son güncelleme: ${data.last_update || '—'}`;\n}\nreturn [{ json: { reply: text } }];"
-      },
-      "name": "Order • Compose Reply",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [2660, 300],
-      "notes": "Kullanıcıya gösterilecek sipariş yanıtı."
-    },
-
-    {
-      "parameters": {
-        "authentication": "headerAuth",
-        "url": "https://graph.facebook.com/v20.0/{{$env.META_WA_PHONE_ID}}/messages",
-        "sendBody": true,
-        "options": { "retryOnFail": true, "maxRetries": 3, "retryWait": 1000 },
-        "jsonBody": {
-          "messaging_product": "whatsapp",
-          "to": "={{$items(\"Transform • Normalize Event\", 0, 0).json.from}}",
-          "type": "interactive",
-          "interactive": {
-            "type": "button",
-            "body": { "text": "Hizmetimizi değerlendirir misiniz?" },
-            "action": {
-              "buttons": [
-                { "type": "reply", "reply": { "id": "rating_5", "title": "👍 Çok İyi" } },
-                { "type": "reply", "reply": { "id": "rating_3", "title": "👌 Orta" } },
-                { "type": "reply", "reply": { "id": "rating_1", "title": "👎 Kötü" } }
-              ]
-            }
-          }
-        }
-      },
-      "name": "Rating • Send WA Buttons",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [2260, 480],
-      "credentials": { "httpHeaderAuth": "Meta WhatsApp Cloud API" },
-      "notes": "WhatsApp interaktif butonları ile puanlama."
-    },
-    {
-      "parameters": {
-        "authentication": "headerAuth",
-        "url": "https://graph.facebook.com/v20.0/{{$env.IG_BUSINESS_ID}}/messages",
-        "sendBody": true,
-        "options": { "retryOnFail": true, "maxRetries": 3, "retryWait": 1000 },
-        "jsonBody": {
-          "recipient": { "id": "={{$items(\"Transform • Normalize Event\", 0, 0).json.from}}" },
-          "message": { "text": "Lütfen hizmetimizi 1-5 arası puanlayın (5=Çok iyi)." }
-        }
-      },
-      "name": "Rating • IG Ask Text",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [2460, 480],
-      "credentials": { "httpHeaderAuth": "Meta Instagram Graph API" },
-      "notes": "Instagram için metin tabanlı puanlama yönlendirmesi."
-    },
-    {
-      "parameters": {
-        "operation": "insert",
-        "table": "ratings",
-        "columns": ["platform", "user_id", "value"],
-        "values": [
-          "={{$items(\"Transform • Normalize Event\", 0, 0).json.platform}}",
-          "={{$items(\"Transform • Normalize Event\", 0, 0).json.from}}",
-          "={{$items(\"Transform • Normalize Event\", 0, 0).json.ratingChoice ? ($items(\"Transform • Normalize Event\", 0, 0).json.ratingChoice === 'rating_5' ? 5 : ($items(\"Transform • Normalize Event\", 0, 0).json.ratingChoice === 'rating_3' ? 3 : 1)) : null}}"
-        ]
-      },
-      "name": "Rating • Save to DB",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [2660, 480],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "Buton seçimi geldiyse 5/3/1 puan olarak kaydeder. IG için metin rakamı parse etmek üzere ek fonksiyon ekleyebilirsiniz."
-    },
-
-    {
-      "parameters": {
-        "authentication": "headerAuth",
-        "url": "https://graph.facebook.com/v20.0/{{$env.META_WA_PHONE_ID}}/messages",
-        "sendBody": true,
-        "options": { "retryOnFail": true, "maxRetries": 3, "retryWait": 1000 },
-        "jsonBody": {
-          "messaging_product": "whatsapp",
-          "to": "={{$items(\"Transform • Normalize Event\", 0, 0).json.from}}",
-          "context": { "message_id": "={{$items(\"Transform • Normalize Event\", 0, 0).json.waMessageId}}" },
-          "type": "text",
-          "text": { "body": "={{$json.reply}}" }
-        }
-      },
-      "name": "Send • WhatsApp Reply",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [2260, 680],
-      "credentials": { "httpHeaderAuth": "Meta WhatsApp Cloud API" },
-      "notes": "Standart metin yanıtı. context.message_id ile reply özelliği."
-    },
-    {
-      "parameters": {
-        "authentication": "headerAuth",
-        "url": "https://graph.facebook.com/v20.0/{{$env.IG_BUSINESS_ID}}/messages",
-        "sendBody": true,
-        "options": { "retryOnFail": true, "maxRetries": 3, "retryWait": 1000 },
-        "jsonBody": {
-          "recipient": { "id": "={{$items(\"Transform • Normalize Event\", 0, 0).json.from}}" },
-          "message": { "text": "={{$json.reply}}" }
-        }
-      },
-      "name": "Send • Instagram Reply",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [2460, 680],
-      "credentials": { "httpHeaderAuth": "Meta Instagram Graph API" },
-      "notes": "Instagram'a standart metin yanıtı."
-    },
-
-    {
-      "parameters": {
-        "operation": "insert",
-        "table": "messages",
-        "columns": ["platform", "user_id", "direction", "text"],
-        "values": [
-          "={{$items(\"Transform • Normalize Event\", 0, 0).json.platform}}",
-          "={{$items(\"Transform • Normalize Event\", 0, 0).json.from}}",
-          "out",
-          "={{$json.reply}}"
-        ]
-      },
-      "name": "DB • Log Outbound Message",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [2660, 680],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "Gönderilen yanıtı kaydeder."
-    },
-
-    {
-      "parameters": {
-        "operation": "chat",
-        "model": "gpt-4o-mini",
-        "temperature": 0.2,
-        "messages": [
-          { "role": "system", "content": "Aşağıdaki diyaloğu 1-3 cümlede müşteri odaklı kalıcı özet olarak kaydet. Gereksiz ayrıntıları çıkar, tercih/niyet gibi bilgileri koru." },
-          { "role": "user", "content": "Kullanıcı: {{$items(\"Transform • Normalize Event\", 0, 0).json.text}}\nBot: {{$items(\"Send • WhatsApp Reply\", 0, 0).json.reply || $items(\"Send • Instagram Reply\", 0, 0).json.reply || $items(\"Order • Compose Reply\", 0, 0).json.reply}}" }
-        ]
-      },
-      "name": "AI • Summarize Memory",
-      "type": "n8n-nodes-base.openai",
-      "typeVersion": 1,
-      "position": [2860, 620],
-      "credentials": { "openaiApi": "OpenAI Account" },
-      "notes": "Kısa müşteri hafızası üretir."
-    },
-    {
-      "parameters": {
-        "operation": "upsert",
-        "table": "customer_memory",
-        "columns": ["platform", "user_id", "summary"],
-        "updateKey": ["platform", "user_id"],
-        "values": [
-          "={{$items(\"Transform • Normalize Event\", 0, 0).json.platform}}",
-          "={{$items(\"Transform • Normalize Event\", 0, 0).json.from}}",
-          "={{$json.data.choices[0].message.content}}"
-        ]
-      },
-      "name": "DB • Upsert Memory",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 1,
-      "position": [3060, 620],
-      "credentials": { "postgres": "ChatbotDB" },
-      "notes": "Müşteri bazlı özet belleği günceller."
-    },
-
     {
       "parameters": {
         "responseBody": "ok",
         "responseCode": 200,
         "options": {}
       },
+      "id": "e1f0b1c0-1111-4444-aaaa-000000000021",
       "name": "Respond • 200 OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [2860, 740],
-      "notes": "Webhook çağrısını tamamlar (200)."
+      "position": [2860, 740]
     }
   ],
   "connections": {
-    "Webhook • Meta Verify (GET)": { "main": [[{ "node": "IF • Verify Token", "type": "main", "index": 0 }]] },
+    "Webhook • Meta Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "IF • Verify Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF • Verify Token": {
       "main": [
-        [{ "node": "Respond • Verify", "type": "main", "index": 0 }],
-        [{ "node": "Respond • 403", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Respond • Verify",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-
-    "Webhook • WhatsApp (POST)": { "main": [[{ "node": "Security • Verify Signature", "type": "main", "index": 0 }]] },
-    "Webhook • Instagram (POST)": { "main": [[{ "node": "Security • Verify Signature", "type": "main", "index": 0 }]] },
-    "Security • Verify Signature": { "main": [[{ "node": "IF • Signature OK?", "type": "main", "index": 0 }]] },
+    "Webhook • WhatsApp (POST)": {
+      "main": [
+        [
+          {
+            "node": "Security • Verify Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook • Instagram (POST)": {
+      "main": [
+        [
+          {
+            "node": "Security • Verify Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Security • Verify Signature": {
+      "main": [
+        [
+          {
+            "node": "IF • Signature OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF • Signature OK?": {
       "main": [
-        [{ "node": "Transform • Normalize Event", "type": "main", "index": 0 }],
-        [{ "node": "Respond • 403 (Sig)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Transform • Normalize Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond • 403 (Sig)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-
-    "Transform • Normalize Event": { "main": [[{ "node": "DB • Upsert Contact", "type": "main", "index": 0 }]] },
-    "DB • Upsert Contact": { "main": [[{ "node": "DB • Log Inbound Message", "type": "main", "index": 0 }]] },
-    "DB • Log Inbound Message": { "main": [[{ "node": "DB • Fetch Memory", "type": "main", "index": 0 }, { "node": "DB • Fetch Last 10 Msgs", "type": "main", "index": 0 }]] },
-    "DB • Fetch Memory": { "main": [[{ "node": "AI • Build Prompt Context", "type": "main", "index": 0 }]] },
-    "DB • Fetch Last 10 Msgs": { "main": [[{ "node": "AI • Build Prompt Context", "type": "main", "index": 0 }]] },
-    "AI • Build Prompt Context": { "main": [[{ "node": "AI • Classify + Draft Reply", "type": "main", "index": 0 }]] },
-    "AI • Classify + Draft Reply": { "main": [[{ "node": "AI • Parse Intent JSON", "type": "main", "index": 0 }]] },
-    "AI • Parse Intent JSON": { "main": [[{ "node": "Route • Intent", "type": "main", "index": 0 }]] },
-
-    "Route • Intent": {
+    "Transform • Normalize Event": {
       "main": [
-        [{ "node": "Order • Extract ID", "type": "main", "index": 0 }],
-        [{ "node": "Rating • Send WA Buttons", "type": "main", "index": 0 }, { "node": "Rating • IG Ask Text", "type": "main", "index": 0 }],
-        [{ "node": "Send • WhatsApp Reply", "type": "main", "index": 0 }, { "node": "Send • Instagram Reply", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Respond • 200 OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
-    },
-    "Order • Extract ID": { "main": [[{ "node": "Order • DB Lookup", "type": "main", "index": 0 }, { "node": "Order • HTTP Lookup", "type": "main", "index": 0 }]] },
-    "Order • DB Lookup": { "main": [[{ "node": "Order • Compose Reply", "type": "main", "index": 0 }]] },
-    "Order • HTTP Lookup": { "main": [[{ "node": "Order • Compose Reply", "type": "main", "index": 0 }]] },
-
-    "Order • Compose Reply": { "main": [[{ "node": "Send • WhatsApp Reply", "type": "main", "index": 0 }, { "node": "Send • Instagram Reply", "type": "main", "index": 0 }]] },
-
-    "Send • WhatsApp Reply": { "main": [[{ "node": "DB • Log Outbound Message", "type": "main", "index": 0 }, { "node": "AI • Summarize Memory", "type": "main", "index": 0 }, { "node": "Respond • 200 OK", "type": "main", "index": 0 }]] },
-    "Send • Instagram Reply": { "main": [[{ "node": "DB • Log Outbound Message", "type": "main", "index": 0 }, { "node": "AI • Summarize Memory", "type": "main", "index": 0 }, { "node": "Respond • 200 OK", "type": "main", "index": 0 }]] },
-
-    "Rating • Send WA Buttons": { "main": [[{ "node": "Rating • Save to DB", "type": "main", "index": 0 }]] },
-    "Rating • IG Ask Text": { "main": [[{ "node": "Rating • Save to DB", "type": "main", "index": 0 }]] },
-
-    "AI • Summarize Memory": { "main": [[{ "node": "DB • Upsert Memory", "type": "main", "index": 0 }]] }
+    }
   },
   "active": false,
-  "settings": {},
-  "pinData": {}
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "workflow-instance-001"
+  },
+  "id": "workflow-001",
+  "pinData": {},
+  "tags": []
 }
